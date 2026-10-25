@@ -19,11 +19,13 @@ export function findApiKey(
   const keyHash = fastHash(apiKey);
 
   return db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, name, key_hash, scope, revoked_at, created_at
       FROM api_keys
       WHERE key_hash = ?
         AND revoked_at IS NULL
-    `)
+    `,
+    )
     .get(keyHash) as ApiKey | undefined;
 }

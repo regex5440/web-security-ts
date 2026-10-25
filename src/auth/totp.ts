@@ -39,5 +39,7 @@ export function verifyAndConsumeTotpCode(
   code: string,
   secret: string,
 ): boolean {
-  return verifyTotpCode(code, secret);
+  if (!verifyTotpCode(code, secret)) return false;
+  const tstamp = Math.floor((Date.now() + 30000) / 1000);
+  return consumeTotpTimeStep(_db, _userId, tstamp);
 }

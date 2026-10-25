@@ -43,6 +43,7 @@ import {
   renderTotpEnabledPage,
   renderTotpSetupPage,
 } from "../views/account.ts";
+import { verifyPassword } from "../auth/passwords.ts";
 
 export function createAccountRouter(deps: Dependencies): Router {
   const { db, keyring } = deps;
@@ -172,6 +173,22 @@ export function createAccountRouter(deps: Dependencies): Router {
     }
     const currentPassword = String(req.body.currentPassword ?? "");
     if (!currentPassword) {
+      res
+        .status(403)
+        .type("html")
+        .send(
+          renderAccountPage(
+            current,
+            "Re-enter your current password to change your email.",
+          ),
+        );
+      return;
+    }
+    const isValidPass = verifyPassword(
+      currentPassword,
+      current.user.password_hash,
+    );
+    if (!isValidPass) {
       res
         .status(403)
         .type("html")
