@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import path, { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { unzipSync } from "fflate";
 import type { Keyring } from "../storage/keyring.ts";
 import { detectTaxDocumentType, encryptTaxDocument } from "./taxDocuments.ts";
@@ -193,5 +193,11 @@ function isInsideDirectory(
   _directory: string,
   _candidatePath: string,
 ): boolean {
-  return true;
+  const candidate = path.relative(_directory, _candidatePath);
+  return (
+    candidate !== "" &&
+    candidate !== ".." &&
+    !candidate.startsWith(`..${sep}`) &&
+    !path.isAbsolute(candidate)
+  );
 }

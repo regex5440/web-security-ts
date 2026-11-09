@@ -135,6 +135,9 @@ export function createCartRouter(deps: Dependencies): Router {
 }
 
 function parseCartQuantity(value: unknown, minimum: 0 | 1): number | undefined {
+  if (!/^(0|[1-9]\d?)$/.test(String(value))) {
+    return undefined;
+  }
   const quantity = Number(value);
   return Number.isSafeInteger(quantity) &&
     quantity >= minimum &&

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Dependencies } from "../dependencies.ts";
 import { readTaxDocument } from "../uploads/taxDocuments.ts";
-import { requireAuth, requireRole } from "../auth/accessControl.ts";
+import { hasRole, requireAuth, requireRole } from "../auth/accessControl.ts";
 import { sendErrorPage } from "../errors.ts";
 import { findUploadedFileById } from "../uploads/index.ts";
 import { findImportedTaxDocumentById } from "../uploads/importedTaxDocuments.ts";
@@ -29,6 +29,12 @@ export function createFilesRouter(deps: Dependencies): Router {
     const file = findUploadedFileById(db, fileId);
     if (!file) {
       sendErrorPage(res, 404, "File Not Found", "We couldn't find that file.");
+      return;
+    }
+
+    const hasAccessRole = hasRole(current, "admin", "support");
+    if (file.user_id !== current.user.id && !hasAccessRole) {
+      sendErrorPage(res, 404, "File Not Found", "We couldn't find that file");
       return;
     }
 

@@ -302,6 +302,15 @@ export function createAccountRouter(deps: Dependencies): Router {
     if (!current) return;
     const review = requireOwnedReview(db, req, res);
     if (!review) return;
+    if (review.user_id !== current.user.id) {
+      sendErrorPage(
+        res,
+        404,
+        "Review Not Found",
+        "Review you are trying to edit, does not exists",
+      );
+      return;
+    }
     res
       .type("html")
       .send(
@@ -327,6 +336,15 @@ export function createAccountRouter(deps: Dependencies): Router {
     }
     const review = requireOwnedReview(db, req, res);
     if (!review) return;
+    if (review.user_id !== current.user.id) {
+      sendErrorPage(
+        res,
+        404,
+        "Review Not Found",
+        "Review you are trying to edit, does not exists",
+      );
+      return;
+    }
     const rating = Number(req.body.rating);
     const body = parseReviewBody(req.body.body);
     if (
@@ -366,6 +384,15 @@ export function createAccountRouter(deps: Dependencies): Router {
     }
     const review = requireOwnedReview(db, req, res);
     if (!review) return;
+    if (review.user_id !== current.user.id) {
+      sendErrorPage(
+        res,
+        404,
+        "Review Not Found",
+        "Review you are trying to edit, does not exists",
+      );
+      return;
+    }
     deleteReview(db, review.id);
     res.redirect("/account/reviews");
   });
