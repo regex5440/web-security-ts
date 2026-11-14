@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Keyring } from "../storage/keyring.ts";
 import { encryptShippingDetails, type ShippingDetails } from "./shipping.ts";
 
-type OrderStatus = "pending" | "paid" | "shipped" | "refunded";
+export type OrderStatus = "pending" | "paid" | "shipped" | "refunded";
 
 export class InsufficientInventoryError extends Error {
   constructor() {

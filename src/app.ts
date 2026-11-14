@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import express, { type RequestHandler } from "express";
+import express from "express";
 import { validateRequestOrigin } from "./csrf.ts";
 import type { Dependencies } from "./dependencies.ts";
 import { errorHandler, sendErrorPage } from "./errors.ts";
@@ -20,29 +20,8 @@ import { createProductsRouter } from "./routes/products.ts";
 import { createStorefrontRouter } from "./routes/storefront.ts";
 import { createSupportRouter } from "./routes/support.ts";
 import { migrateSensitiveDataAtRest } from "./storage/migrations.ts";
-
-const apiCors: RequestHandler = (req, res, next) => {
-  const origin = req.header("Origin");
-
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-
-  res.setHeader("Vary", "Origin");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    res.sendStatus(204);
-    return;
-  }
-
-  next();
-};
+import cors from "cors";
+import helmet from "helmet";
 
 export function createApp(deps: Dependencies): express.Express {
   migrateSensitiveDataAtRest(deps.db, deps.keyring);
@@ -51,7 +30,29 @@ export function createApp(deps: Dependencies): express.Express {
   app.use((_req, res, next) => {
     const cspNonce = randomBytes(16).toString("base64");
     res.locals.cspNonce = cspNonce;
-    res.setHeader("X-Content-Type-Options", "nosniff");
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          "script-src": `'self' 'nonce-${cspNonce}'`,
+          "style-src": ["'self'"],
+          "frame-src": ["'self'"],
+          upgradeInsecureRequests: null,
+        },
+      },
+      xFrameOptions: {
+        action: "sameorigin",
+      },
+      referrerPolicy: {
+        policy: "strict-origin-when-cross-origin",
+      },
+      strictTransportSecurity: false,
+    })(_req, res, next);
+  });
+
+  app.use((_req, res, next) => {
+    if (/\/shipping\-widget\.(js|css)/.test(_req.path)) {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    }
     next();
   });
 
@@ -68,7 +69,15 @@ export function createApp(deps: Dependencies): express.Express {
   app.use(express.json());
   app.use(createPawPalRouter(deps));
   app.use(validateRequestOrigin(deps.appOrigin));
-  app.use("/api", apiCors);
+  app.use(
+    "/api/products",
+    cors({
+      origin: "*",
+      methods: "GET",
+      credentials: false,
+      allowedHeaders: [],
+    }),
+  );
   app.use(createApiRouter(deps));
 
   app.use(createArchiveRouter(deps));

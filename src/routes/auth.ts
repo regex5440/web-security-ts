@@ -8,7 +8,6 @@ import {
 } from "../auth/passwords.ts";
 import {
   createPasswordResetToken,
-  findPasswordResetToken,
   resetPasswordWithToken,
   validatePasswordResetToken,
 } from "../auth/passwordResetTokens.ts";

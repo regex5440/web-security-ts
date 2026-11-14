@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "./db/index.ts";
 import { loadOptionalKeyring, type Keyring } from "./storage/keyring.ts";
+import { EnvVarError } from "./errors.ts";
 
 export type Dependencies = {
   appOrigin: string;
@@ -14,6 +15,7 @@ export type Dependencies = {
   maxPublicProductResults: number;
   downloadSigningKey: Buffer;
   keyring: Keyring | undefined;
+  pawPalApiKey: string;
   db: DatabaseSync;
 };
 
@@ -42,6 +44,19 @@ export function initDependencies(
     throw new Error("ACORN_FULFILLMENT_DELAY_MS must be a non-negative number");
   }
 
+  const pawpalKey = env["PAWPAL_API_KEY"];
+  if (!pawpalKey) {
+    throw new EnvVarError("PAWPAL_API_KEY");
+  }
+
+  const downloadSignKey = env["DOWNLOAD_SIGNING_KEY"];
+  if (!downloadSignKey) {
+    throw new EnvVarError("DOWNLOAD_SIGNING_KEY");
+  }
+  if (/(^[A-Fa-f0-9]\=$){64}/.test(downloadSignKey)) {
+    throw new Error("DOWNLOAD_SIGNING_KEY must be 64 byte hex encoded value");
+  }
+
   const values = {
     appOrigin: new URL(env.APP_ORIGIN ?? "http://localhost:3000").origin,
     port,
@@ -50,8 +65,9 @@ export function initDependencies(
     maxRequestBodyBytes: 32 * 1024,
     maxUploadBytes: 1024 * 1024,
     maxPublicProductResults: 50,
-    downloadSigningKey: randomBytes(32),
+    downloadSigningKey: Buffer.from(downloadSignKey, "hex"),
     keyring: loadOptionalKeyring(env),
+    pawPalApiKey: pawpalKey,
   };
 
   return { ...values, db: openDatabase(values.databasePath) };

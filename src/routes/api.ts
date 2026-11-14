@@ -7,8 +7,32 @@ import {
   listOrderItems,
   listOrdersForUser,
 } from "../orders/index.ts";
-import { listAllProducts } from "../products.ts";
+import type { Order, OrderItem } from "../orders/index.ts";
+import { listProducts } from "../products.ts";
+import type { Product } from "../products.ts";
 import { findApiKey } from "../auth/apiKeys.ts";
+
+type ProductResponse = {
+  id: number;
+  name: string;
+  description: string;
+  image_path: string;
+  price_cents: number;
+};
+
+type OrderResponse = {
+  id: number;
+  status: Order["status"];
+  total_cents: number;
+  created_at: string;
+};
+
+type OrderItemResponse = {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  price_cents: number;
+};
 
 export function createApiRouter(deps: Dependencies): Router {
   const { db } = deps;
@@ -21,7 +45,9 @@ export function createApiRouter(deps: Dependencies): Router {
       return;
     }
 
-    res.json({ orders: listOrdersForUser(db, current.user.id) });
+    res.json({
+      orders: toOrderResponse(listOrdersForUser(db, current.user.id)),
+    });
   });
 
   router.get("/api/orders/:id", (req, res) => {
@@ -43,11 +69,14 @@ export function createApiRouter(deps: Dependencies): Router {
       return;
     }
 
-    res.json({ order, items: listOrderItems(db, order.id) });
+    res.json({
+      order: toOrderResponse([order])[0],
+      items: toOrderItemResponse(listOrderItems(db, order.id)),
+    });
   });
 
   router.get("/api/products", (_req, res) => {
-    res.json({ products: listAllProducts(db) });
+    res.json({ products: toProductResponse(listProducts(db)) });
   });
 
   router.get("/api/integrations/warehouse/orders", (_req, res) => {
@@ -80,4 +109,32 @@ export function createApiRouter(deps: Dependencies): Router {
   });
 
   return router;
+}
+
+function toProductResponse(products: Product[]): ProductResponse[] {
+  return products.map((p) => ({
+    description: p.description,
+    id: p.id,
+    image_path: p.image_path,
+    name: p.name,
+    price_cents: p.price_cents,
+  }));
+}
+
+function toOrderResponse(orders: Order[]): OrderResponse[] {
+  return orders.map((o) => ({
+    created_at: o.created_at,
+    id: o.id,
+    status: o.status,
+    total_cents: o.total_cents,
+  }));
+}
+
+function toOrderItemResponse(orderItem: OrderItem[]): OrderItemResponse[] {
+  return orderItem.map((o) => ({
+    price_cents: o.price_cents,
+    product_id: o.product_id,
+    product_name: o.product_name,
+    quantity: o.quantity,
+  }));
 }

@@ -22,6 +22,7 @@ import {
   findOrderById,
   InsufficientInventoryError,
 } from "../orders/index.ts";
+import { csrfTokensMatch } from "../csrf.ts";
 
 export function sendFulfillmentTimeout(
   response: Response,
@@ -79,6 +80,10 @@ export function createCheckoutRouter(deps: Dependencies): Router {
     const current = requireAuth(db, req, res);
     if (!current) {
       return;
+    }
+
+    if (!csrfTokensMatch(current.session.csrf_token, req.body?.csrfToken)) {
+      return sendErrorPage(res, 403, "Forbidden", "CSRF mismatch");
     }
 
     let items = listCartItems(db, current.user.id);
@@ -194,7 +199,11 @@ export function createCheckoutRouter(deps: Dependencies): Router {
       return;
     }
 
-    const pawPalReference = createPawPalReference(order.id, order.total_cents);
+    const pawPalReference = createPawPalReference(
+      order.id,
+      order.total_cents,
+      deps.pawPalApiKey,
+    );
 
     logEvent("checkout_started", {
       userId: current.user.id,
