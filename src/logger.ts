@@ -4,6 +4,13 @@ import { dirname, join } from "node:path";
 type LogFields = Record<string, unknown>;
 
 const REDACTED_KEYS = new Set([
+  "email",
+  "shippingName",
+  "shippingAddress",
+  "shippingCity",
+  "shippingRegion",
+  "shippingPostalCode",
+  "originalName",
   "sessionId",
   "resetToken",
   "resetLink",

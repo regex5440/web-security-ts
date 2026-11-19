@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export function createPawPalReference(
   orderId: number,
@@ -25,8 +25,17 @@ export type PawPalWebhookVerification =
   | { outcome: "approved"; orderId: number };
 
 export function verifyPawPalWebhook(
+  providedKey: Buffer,
+  expectedKey: Buffer,
   payload: unknown,
 ): PawPalWebhookVerification {
+  try {
+    if (!timingSafeEqual(providedKey, expectedKey)) {
+      return { outcome: "unauthorized" };
+    }
+  } catch {
+    return { outcome: "unauthorized" };
+  }
   const payloadRecord =
     typeof payload === "object" && payload !== null
       ? (payload as Record<string, unknown>)
@@ -35,6 +44,14 @@ export function verifyPawPalWebhook(
     typeof payloadRecord.orderId === "number"
       ? payloadRecord.orderId
       : Number.NaN;
+
+  if (
+    Number.isNaN(orderId) ||
+    orderId <= 0 ||
+    payloadRecord.status !== "approved"
+  ) {
+    return { outcome: "malformed" };
+  }
 
   return { outcome: "approved", orderId };
 }

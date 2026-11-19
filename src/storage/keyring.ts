@@ -1,3 +1,5 @@
+import { decrypt, encrypt } from "./encryption.ts";
+
 const ACTIVE_VERSION_ENV = "DATA_ENCRYPTION_ACTIVE_VERSION";
 const KEY_ENV_PREFIX = "DATA_ENCRYPTION_KEY_";
 const KEY_HEX_PATTERN = /^[0-9a-f]{64}$/i;
@@ -80,14 +82,17 @@ export function encryptStringWithKeyring(
   value: string,
   _keyring: Keyring | undefined,
 ): string {
-  return value;
+  return serializeEncryptedPayload(
+    encryptWithKeyring(Buffer.from(value), _keyring),
+  ).toString();
 }
 
 export function decryptStringWithKeyring(
   value: string,
   _keyring: Keyring | undefined,
 ): string {
-  return value;
+  const payload = deserializeEncryptedPayload(Buffer.from(value));
+  return decryptWithKeyring(payload, _keyring).toString();
 }
 
 export function serializeEncryptedPayload(
@@ -158,4 +163,33 @@ function decodeBase64(value: string): Buffer {
   }
 
   return decoded;
+}
+
+export function encryptWithKeyring(
+  plaintext: Buffer,
+  keyring?: Keyring,
+): VersionedEncryptedPayload {
+  const kr = requireKeyring(keyring);
+  const key = kr.keys.get(kr.activeVersion);
+  if (!key) {
+    throw new Error("key for active version is missing from keyring");
+  }
+  return {
+    ...encrypt(plaintext, key),
+    keyVersion: kr.activeVersion,
+  };
+}
+
+export function decryptWithKeyring(
+  payload: VersionedEncryptedPayload,
+  keyring?: Keyring,
+): Buffer {
+  const kr = requireKeyring(keyring);
+  const key = kr.keys.get(payload.keyVersion);
+  if (!key) {
+    throw new Error(
+      "missing key matching the payload key version from keyring",
+    );
+  }
+  return decrypt(payload, key);
 }
