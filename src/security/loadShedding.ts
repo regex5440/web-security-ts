@@ -1,4 +1,4 @@
-import type { Response } from "express";
+import type { RequestHandler, Response } from "express";
 
 export type LoadSheddingOptions = {
   maxConcurrent: number;
@@ -29,4 +29,33 @@ export function rejectLoadShedding(
   response.setHeader("X-In-Flight-Limit", String(options.maxConcurrent));
   response.setHeader("Retry-After", String(options.retryAfterSeconds));
   response.status(503).json({ error: "Service is at capacity" });
+}
+
+export function createLoadShedder(
+  options: LoadSheddingOptions,
+): RequestHandler {
+  validateLoadSheddingOptions(options);
+  const closure = {
+    inFlightRequests: 0,
+  };
+  return (() => (req, res, next) => {
+    res.setHeader("X-In-Flight-Limit", options.maxConcurrent);
+    if (closure.inFlightRequests >= options.maxConcurrent) {
+      return rejectLoadShedding(res, options);
+    }
+    closure.inFlightRequests++;
+
+    const inFlightFinished = (() => {
+      let isFinished = false;
+      return () => {
+        if (!isFinished) {
+          closure.inFlightRequests--;
+          isFinished = true;
+        }
+      };
+    })();
+    res.once("finish", inFlightFinished);
+    res.once("close", inFlightFinished);
+    next();
+  })();
 }

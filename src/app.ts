@@ -22,10 +22,17 @@ import { createSupportRouter } from "./routes/support.ts";
 import { migrateSensitiveDataAtRest } from "./storage/migrations.ts";
 import cors from "cors";
 import helmet from "helmet";
+import { createRateLimiter } from "./security/rateLimit.ts";
+import { createLoadShedder } from "./security/loadShedding.ts";
 
 export function createApp(deps: Dependencies): express.Express {
   migrateSensitiveDataAtRest(deps.db, deps.keyring);
+  const loadShedder = createLoadShedder({
+    maxConcurrent: 50,
+    retryAfterSeconds: 1,
+  });
   const app = express();
+
   app.set("trust proxy", deps.trustedProxyHops);
 
   app.use((_req, res, next) => {
@@ -60,14 +67,20 @@ export function createApp(deps: Dependencies): express.Express {
   app.get("/health", (_req, res) => {
     res.json({ ok: true, app: "bearly-secure" });
   });
+  app.use(loadShedder);
+  app.use(createRateLimiter({ windowSeconds: 60, max: 100 }));
+  app.use("/api/products", createRateLimiter({ windowSeconds: 60, max: 30 }));
+
   app.use(express.static("public"));
   app.use(
     "/vendor/simplewebauthn",
     express.static("node_modules/@simplewebauthn/browser/dist/bundle"),
   );
 
-  app.use(express.urlencoded({ extended: false }));
-  app.use(express.json());
+  app.use(
+    express.urlencoded({ extended: false, limit: deps.maxRequestBodyBytes }),
+  );
+  app.use(express.json({ limit: deps.maxRequestBodyBytes }));
   app.use(createPawPalRouter(deps));
   app.use(validateRequestOrigin(deps.appOrigin));
   app.use(

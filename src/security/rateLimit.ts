@@ -1,4 +1,5 @@
 import type { Request, RequestHandler, Response } from "express";
+import { sendErrorPage } from "../errors.ts";
 
 export type RateLimitState = {
   limit: number;
@@ -37,7 +38,7 @@ export class FixedWindowRateLimiter {
   public constructor(options: RateLimiterOptions) {
     validateRateLimiterOptions(options);
     this.max = options.max;
-    this.onLimit = options.onLimit;
+    this.onLimit = options.onLimit || onLimitReachedHandler;
     this.readKey = options.key ?? clientIpKey;
     this.readNow = options.now ?? Date.now;
     this.windowMs = options.windowSeconds * 1_000;
@@ -116,7 +117,14 @@ export class FixedWindowRateLimiter {
 
 export function createRateLimiter(options: RateLimiterOptions): RequestHandler {
   validateRateLimiterOptions(options);
-  return (_req, _res, next) => next();
+  const rateLimiter = new FixedWindowRateLimiter(options);
+
+  return (_req, _res, next) => {
+    const result = rateLimiter.consume(_req);
+    if (result.limited) return rateLimiter.reject(_req, _res, result.state);
+    rateLimiter.setHeaders(_res, result.state);
+    next();
+  };
 }
 
 function validateRateLimiterOptions(options: RateLimiterOptions): void {
@@ -140,3 +148,10 @@ export function canonicalEmailKey(req: Request): string {
     .trim()
     .toLowerCase();
 }
+
+export const onLimitReachedHandler: RateLimiterOptions["onLimit"] = (
+  _,
+  res,
+) => {
+  sendErrorPage(res, 429, "Too Many Requests", "Please try again later");
+};

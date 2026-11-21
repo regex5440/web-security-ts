@@ -58,6 +58,8 @@ import {
   renderTotpLoginPage as renderTotpLoginView,
 } from "../views/auth.ts";
 import { logEvent } from "../logger.ts";
+import { canonicalEmailKey, createRateLimiter } from "../security/rateLimit.ts";
+import { protectSignupFromBots } from "../security/botRisk.ts";
 
 type AuthenticationLogFields = {
   success: boolean;
@@ -82,6 +84,32 @@ export function createAuthRouter(deps: Dependencies): Router {
   const VERIFICATION_RESTART_MESSAGE =
     "That verification attempt is no longer valid. Log in again.";
 
+  const loginLimiter = [
+    createRateLimiter({
+      max: 20,
+      windowSeconds: 20 * 60,
+    }),
+    createRateLimiter({
+      windowSeconds: 15 * 60,
+      max: 5,
+      key: canonicalEmailKey,
+    }),
+  ];
+  const otpLimiter = createRateLimiter({
+    max: 20,
+    windowSeconds: 20 * 60,
+  });
+  const resetPasswordLimiter = [
+    createRateLimiter({
+      max: 10,
+      windowSeconds: 60 * 60,
+    }),
+    createRateLimiter({
+      max: 3,
+      windowSeconds: 60 * 60,
+      key: canonicalEmailKey,
+    }),
+  ];
   router.get("/login", (req, res) => {
     const returnTo = safeReturnTo(req.query.returnTo);
     const error =
@@ -198,7 +226,7 @@ export function createAuthRouter(deps: Dependencies): Router {
     res.redirect("/account/totp");
   });
 
-  router.post("/login", async (req, res) => {
+  router.post("/login", ...loginLimiter, async (req, res) => {
     const email = normalizeEmail(String(req.body.email ?? ""));
     const password = String(req.body.password ?? "");
     const returnTo = safeReturnTo(req.body.returnTo);
@@ -256,7 +284,7 @@ export function createAuthRouter(deps: Dependencies): Router {
     res.redirect("/login");
   });
 
-  router.post("/login/totp", (req, res) => {
+  router.post("/login/totp", otpLimiter, (req, res) => {
     const requestedReturnTo = safeReturnTo(req.body.returnTo);
     const challengeToken = getTotpLoginChallengeToken(req.header("cookie"));
     const challenge = challengeToken
@@ -327,7 +355,7 @@ export function createAuthRouter(deps: Dependencies): Router {
     res.redirect(challenge.return_to);
   });
 
-  router.post("/signup", async (req, res) => {
+  router.post("/signup", protectSignupFromBots, async (req, res) => {
     if (getCurrentSession(db, req.header("cookie"))) {
       res.redirect("/account");
       return;
@@ -408,7 +436,7 @@ export function createAuthRouter(deps: Dependencies): Router {
     res.type("html").send(renderPasswordResetRequestPage());
   });
 
-  router.post("/password-reset", (req, res) => {
+  router.post("/password-reset", ...resetPasswordLimiter, (req, res) => {
     const email = normalizeEmail(String(req.body.email ?? ""));
     const user = findUserByEmail(db, email);
 
