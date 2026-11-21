@@ -9,9 +9,10 @@
       "request": "launch",
       "name": "Launch Program",
       "skipFiles": ["<node_internals>/**"],
-      "program": "${workspaceFolder}/scripts/storage-policy.mjs",
+      "program": "${workspaceFolder}/scripts/incident-response-policy.mjs",
       "outFiles": ["${workspaceFolder}/**/*.js"],
-      "args": ["encrypted-files"]
+      "args": ["damage-control"],
+      "runtimeArgs": ["--env-file-if-exists=.env"]
     }
   ]
 }

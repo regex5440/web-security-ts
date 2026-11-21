@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import express from "express";
 import { validateRequestOrigin } from "./csrf.ts";
 import type { Dependencies } from "./dependencies.ts";
@@ -36,6 +36,12 @@ export function createApp(deps: Dependencies): express.Express {
   app.set("trust proxy", deps.trustedProxyHops);
 
   app.use((_req, res, next) => {
+    //Attach a unique requestId for tracing
+    const uuid = randomUUID();
+    res.setHeader("x-request-id", uuid);
+    res.locals.requestId = uuid;
+
+    // CORS and CSP config
     const cspNonce = randomBytes(16).toString("base64");
     res.locals.cspNonce = cspNonce;
     helmet({
@@ -67,6 +73,15 @@ export function createApp(deps: Dependencies): express.Express {
   app.get("/health", (_req, res) => {
     res.json({ ok: true, app: "bearly-secure" });
   });
+
+  app.get("/.well-known/security.txt", (req, res) => {
+    const timestamp = new Date();
+    timestamp.setDate(timestamp.getDate() + 180);
+    res.type("text/plain").send(`Contact: mailto:security@bearlysecure.example
+Policy: https://bearlysecure.example/security-policy
+Expires: ${timestamp.toISOString()}`);
+  });
+
   app.use(loadShedder);
   app.use(createRateLimiter({ windowSeconds: 60, max: 100 }));
   app.use("/api/products", createRateLimiter({ windowSeconds: 60, max: 30 }));
